@@ -31,6 +31,6 @@ def get_sam_config():
     config = ml_collections.ConfigDict()
     config.rho = 0.1
     config.gradient_clipping = 1.0
-    config.weight_decay = 0.001
+    config.weight_decay = 0.3
 
     return config

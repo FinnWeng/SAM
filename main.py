@@ -17,6 +17,8 @@ from SAM import dual_vector
 import training_config
 import model_config
 
+import math
+
 class With_SAM_Model(tf.keras.Model):
     def __init__(self, inputs, outputs , dual_vector, rho, gradient_clipping, no_weight_decay_on_bn = False, l2_reg = 0):
         super(With_SAM_Model, self).__init__(inputs,outputs)
@@ -107,6 +109,37 @@ class With_SAM_Model(tf.keras.Model):
         return result
 
 
+
+
+class Warmup_Cos_Decay_Schedule(tf.keras.optimizers.schedules.LearningRateSchedule):
+
+    def __init__(self, cos_initial_learning_rate, warmup_steps, cos_decay_steps, alpha = 0):
+        self.cos_initial_learning_rate = cos_initial_learning_rate
+        self.warmup_steps = warmup_steps
+        self.cos_decay_steps = cos_decay_steps
+        self.alpha = alpha
+
+        '''
+        there's only one step
+        the step of warm up and decay step counts separatly.
+        when step > warmup step, switch to cos decay model
+        '''
+    
+    def decayed_learning_rate(self, step):
+        step = min(step - self.warmup_steps, self.cos_decay_steps) # here i deal with problem of step that count warm up step.
+        cosine_decay = 0.5 * (1 + tf.math.cos(math.pi * step /  self.cos_decay_steps))
+        decayed = (1 - self.alpha) * cosine_decay + self.alpha
+        return self.cos_initial_learning_rate * decayed
+
+    def __call__(self, step):
+        
+        if step <= self.warmup_steps:
+            lr = self.cos_initial_learning_rate*(step/self.warmup_steps)
+        else:
+            lr = self.decayed_learning_rate(step)
+             
+        return lr
+
 if __name__ == "__main__":
     # tf.config.experimental_run_functions_eagerly(True)
 
@@ -196,8 +229,9 @@ if __name__ == "__main__":
     log_dir="./tf_log/sam_vit/"
     # log_dir="./tf_log/origin_vit/"
     total_steps = 100
-    warmup_steps = 5
+    warmup_steps = 500
     base_lr = 1e-3
+    epochs = 200
 
     # define callback 
     tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=10, update_freq= 10)
@@ -212,6 +246,8 @@ if __name__ == "__main__":
     # lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(initial_learning_rate = 1e-2, decay_steps = 1000, decay_rate = 0.01, staircase=False, name=None)
     # lr_schedule = Cosine_Decay_with_Warm_up(base_lr, total_steps, warmup_steps)
 
+    lr_schedule = Warmup_Cos_Decay_Schedule(base_lr, warmup_steps = 10, cos_decay_steps = steps_per_epoch*epochs)
+
 
     model.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate = base_lr), 
@@ -225,7 +261,7 @@ if __name__ == "__main__":
     # pdb.set_trace()
 
     hist = model.fit(ds_train,
-                epochs=200, 
+                epochs=epochs, 
                 steps_per_epoch=steps_per_epoch,
                 validation_data = ds_val,
                 validation_steps=3,callbacks = callback_list).history
