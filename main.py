@@ -18,23 +18,26 @@ import training_config
 import model_config
 
 class With_SAM_Model(tf.keras.Model):
-    def __init__(self, inputs, outputs , dual_vector, rho):
+    def __init__(self, inputs, outputs , dual_vector, rho, gradient_clipping):
         super(With_SAM_Model, self).__init__(inputs,outputs)
         self.dual_vector_fn = dual_vector
         self.rho = rho
+        self.gradient_clipping = gradient_clipping
 
     
     def get_sam_gradient(self, grads, x, y):
 
         grads = dual_vector(grads)
 
-        inner_trainable_vars = self.trainable_variables
-        # print(type(self.trainable_variables))
-        # print(type(grads))
+        inner_trainable_vars = tf.nest.map_structure(lambda a: tf.identity(a) , self.trainable_variables)
+  
         # import pdb
         # pdb.set_trace()
 
+
         _ = tf.nest.map_structure(lambda a, b: a.assign(a + self.rho * b), self.trainable_variables , grads) # model to noised model
+
+
 
         with tf.GradientTape() as noised_tape:
             noised_y_pred = self(x)  # Forward pass
@@ -44,6 +47,7 @@ class With_SAM_Model(tf.keras.Model):
         noised_grads = noised_tape.gradient(noised_loss, noised_vars)
 
         _ = tf.nest.map_structure(lambda a, b: a.assign(b), self.trainable_variables, inner_trainable_vars) # noised model to model
+
 
         return noised_grads
 
@@ -68,20 +72,31 @@ class With_SAM_Model(tf.keras.Model):
         trainable_vars = self.trainable_variables
         gradients = tape.gradient(loss, trainable_vars)
 
-        noised_grads = self.get_sam_gradient(gradients, x, y)
+        if self.rho > 0:  # SAM loss
+            gradients = self.get_sam_gradient(gradients, x, y)
+        else:
+            pass
+
+        gradients, gradient_norm = tf.clip_by_global_norm(gradients, clip_norm = self.gradient_clipping)
 
 
-
+            
         # Update weights
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
         # Update metrics (includes the metric that tracks the loss)
         self.compiled_metrics.update_state(y, y_pred)
         # Return a dict mapping metric names to current value
-        return {m.name: m.result() for m in self.metrics}
+        result = {m.name: m.result() for m in self.metrics}
+        result["gradient_norm"] = gradient_norm
+
+        param_norm = tf.math.sqrt(sum(tf.nest.map_structure(lambda x: tf.reduce_sum(tf.math.square(x)), self.trainable_variables)))
+        result["param_norm"] = param_norm
+        
+        return result
 
 
 if __name__ == "__main__":
-    tf.config.experimental_run_functions_eagerly(True)
+    # tf.config.experimental_run_functions_eagerly(True)
 
     gpus = tf.config.experimental.list_physical_devices('GPU')
     if gpus:
@@ -148,7 +163,7 @@ if __name__ == "__main__":
 
     # model = tf.keras.Model(inputs = [model_input],outputs = [logit], name = "ViT_model")
 
-    sam_model = With_SAM_Model(inputs = [model_input],outputs = [prob], dual_vector = dual_vector, rho = 0.05)
+    sam_model = With_SAM_Model(inputs = [model_input],outputs = [prob], dual_vector = dual_vector, rho = 0.1, gradient_clipping = 1.0)
 
     model = sam_model
 
@@ -167,7 +182,7 @@ if __name__ == "__main__":
     base_lr = 1e-3
 
     # define callback 
-    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
+    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=10, update_freq= "batch")
     save_model_callback = tf.keras.callbacks.ModelCheckpoint(
         filepath='./model/ViT.ckpt',
         save_weights_only= True,
