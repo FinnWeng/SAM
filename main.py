@@ -232,7 +232,7 @@ if __name__ == "__main__":
     total_steps = 100
     warmup_steps = 500
     base_lr = 1e-3
-    epochs = 200
+    epochs = 100
 
     # define callback 
     tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=10, update_freq= 10)
@@ -247,7 +247,7 @@ if __name__ == "__main__":
     # lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(initial_learning_rate = 1e-2, decay_steps = 1000, decay_rate = 0.01, staircase=False, name=None)
     # lr_schedule = Cosine_Decay_with_Warm_up(base_lr, total_steps, warmup_steps)
 
-    lr_schedule = Warmup_Cos_Decay_Schedule(base_lr, warmup_steps = 10, cos_decay_steps = steps_per_epoch*epochs)
+    lr_schedule = Warmup_Cos_Decay_Schedule(base_lr, warmup_steps = warmup_steps, cos_decay_steps = steps_per_epoch*epochs)
 
 
     model.compile(
