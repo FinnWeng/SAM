@@ -18,42 +18,34 @@ import training_config
 import model_config
 
 class With_SAM_Model(tf.keras.Model):
-    def __init__(self, inputs, outputs ,vit_model, dual_vector, rho):
+    def __init__(self, inputs, outputs , dual_vector, rho):
         super(With_SAM_Model, self).__init__(inputs,outputs)
-        self.vit_model = vit_model
         self.dual_vector_fn = dual_vector
         self.rho = rho
-
-    def compile(self, optimizer, loss):
-        super(With_SAM_Model, self).compile()
-        self.optimizer = optimizer
-        self.loss_fn = loss
-
 
     
     def get_sam_gradient(self, grads, x, y):
 
         grads = dual_vector(grads)
 
-        inner_trainable_vars = self.vit_model.trainable_variables
+        inner_trainable_vars = self.trainable_variables
+        # print(type(self.trainable_variables))
+        # print(type(grads))
+        # import pdb
+        # pdb.set_trace()
 
-        _ = tf.nest.map_structure(lambda a, b: x.assign(a + self.rho * b), self.vit_model.trainable_variables , grads) # model to noised model
+        _ = tf.nest.map_structure(lambda a, b: a.assign(a + self.rho * b), self.trainable_variables , grads) # model to noised model
 
         with tf.GradientTape() as noised_tape:
-            noised_y_pred = self.vit_model(x)  # Forward pass
+            noised_y_pred = self(x)  # Forward pass
             noised_loss = self.compiled_loss(y, noised_y_pred)
         
-        noised_vars = self.vit_model.trainable_variables
+        noised_vars = self.trainable_variables
         noised_grads = noised_tape.gradient(noised_loss, noised_vars)
 
-        _ = tf.nest.map_structure(lambda a, b: a.assign(b), self.vit_model.trainable_variables, inner_trainable_vars) # noised model to model
+        _ = tf.nest.map_structure(lambda a, b: a.assign(b), self.trainable_variables, inner_trainable_vars) # noised model to model
 
         return noised_grads
-    
-    def call(self, inputs):
-        prob = self.vit_model(x)
-        return prob
-
 
 
 
@@ -67,21 +59,21 @@ class With_SAM_Model(tf.keras.Model):
         with tf.GradientTape() as tape:
 
             
-            y_pred = self.vit_model(x)  # Forward pass
-            # Compute the loss value
+            y_pred = self(x)  # Forward pass
+            # Compute the loss valuese
             # (the loss function is configured in `compile()`)
             loss = self.compiled_loss(y, y_pred)
 
         # Compute gradients
-        trainable_vars = self.vit_model.trainable_variables
+        trainable_vars = self.trainable_variables
         gradients = tape.gradient(loss, trainable_vars)
 
-        noised_grads = get_sam_gradient(gradients, x, y)
+        noised_grads = self.get_sam_gradient(gradients, x, y)
 
 
 
         # Update weights
-        self.optimizer.apply_gradients(zip(gradients, self.vit_model.trainable_variables))
+        self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
         # Update metrics (includes the metric that tracks the loss)
         self.compiled_metrics.update_state(y, y_pred)
         # Return a dict mapping metric names to current value
@@ -154,12 +146,9 @@ if __name__ == "__main__":
 
     prob = tf.keras.layers.Softmax(axis = -1, name = "label")(logit)
 
-    model = tf.keras.Model(inputs = [model_input],outputs = [prob], name = "ViT_model")
+    # model = tf.keras.Model(inputs = [model_input],outputs = [logit], name = "ViT_model")
 
-    sam_input = tf.keras.Input(shape=one_train_data["image"].shape[1:],name="image",dtype=tf.float32)
-
-
-    sam_model = With_SAM_Model(model, dual_vector, rho = 0.05)
+    sam_model = With_SAM_Model(inputs = [model_input],outputs = [prob], dual_vector = dual_vector, rho = 0.05)
 
     model = sam_model
 
@@ -194,7 +183,7 @@ if __name__ == "__main__":
     model.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate = base_lr), 
         loss={"label":tf.keras.losses.CategoricalCrossentropy(from_logits=False)},
-        # metrics={'label': 'accuracy'}
+        metrics={'label': 'accuracy'}
         )
 
     # print(model.summary())
