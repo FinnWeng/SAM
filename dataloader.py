@@ -81,21 +81,21 @@ DATASET_PRESETS = {
          'pp': ml_collections.ConfigDict(
              {'train': 'train[:98%]',
               'test': 'test',
-              'crop': 384})
+              'crop': 224})
          }),
     'cifar100': ml_collections.ConfigDict(
         {'total_steps': 10_000,
          'pp': ml_collections.ConfigDict(
              {'train': 'train[:98%]',
               'test': 'test',
-              'crop': 384})
+              'crop': 224})
          }),
     'imagenet2012': ml_collections.ConfigDict(
         {'total_steps': 20_000,
          'pp': ml_collections.ConfigDict(
              {'train': 'train[:99%]',
               'test': 'validation',
-              'crop': 384})
+              'crop': 224})
          }),
 }
 

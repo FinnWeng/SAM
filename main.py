@@ -172,7 +172,8 @@ if __name__ == "__main__":
 
 
     # initialize model
-    vit_model_config = model_config.get_b32_config()
+    # vit_model_config = model_config.get_b32_config()
+    vit_model_config = model_config.get_b16_config()
     print(vit_model_config )
     
     vit_model = ViT(num_classes=ds_train_num_classes, **vit_model_config)
