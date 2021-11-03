@@ -331,7 +331,8 @@ class ViT(tf.keras.Model):
         if self.representation_size is not None:
             x = self.get("pre_logits",tf.keras.layers.Dense, 
                 self.representation_size,kernel_initializer=tf.keras.initializers.LecunNormal(),
-                activation = "tanh")(x)
+                )(x)
+            x = tf.keras.activations.gelu(x,approximate = True)
         # else:
         #     x = IdentityLayer(name='pre_logits')(x)
 
