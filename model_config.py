@@ -9,7 +9,7 @@ def get_b16_config():
     config.hidden_size = 128
     config.transformer = ml_collections.ConfigDict()
     # config.transformer.mlp_dim = 3072
-    config.transformer.mlp_dim = 128
+    config.transformer.mlp_dim = 256
     config.transformer.num_heads = 12
     config.transformer.num_layers = 12
     config.transformer.attention_dropout_rate = 0.0
@@ -25,4 +25,12 @@ def get_b32_config():
     config.name = 'ViT-B_32'
     config.patches.size = (32, 32)
     
+    return config
+
+def get_sam_config():
+    config = ml_collections.ConfigDict()
+    config.rho = 0.1
+    config.gradient_clipping = 1.0
+    config.weight_decay = 0.001
+
     return config

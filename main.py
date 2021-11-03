@@ -18,11 +18,21 @@ import training_config
 import model_config
 
 class With_SAM_Model(tf.keras.Model):
-    def __init__(self, inputs, outputs , dual_vector, rho, gradient_clipping):
+    def __init__(self, inputs, outputs , dual_vector, rho, gradient_clipping, no_weight_decay_on_bn = False, l2_reg = 0):
         super(With_SAM_Model, self).__init__(inputs,outputs)
         self.dual_vector_fn = dual_vector
         self.rho = rho
         self.gradient_clipping = gradient_clipping
+        self.no_weight_decay_on_bn = no_weight_decay_on_bn
+        self.l2_reg = l2_reg
+    
+    def weights_decay(self, weight_penalty_params):
+        if self.no_weight_decay_on_bn:
+            weight_l2 = sum(tf.nest.map_structure(lambda x: tf.reduce_sum(tf.math.square(x)),  [ w for w in weight_penalty_params if len(w.shape) > 1]))
+        else:
+            weight_l2 = sum(tf.nest.map_structure(lambda x: tf.reduce_sum(tf.math.square(x)), weight_penalty_params))
+        
+        return weight_l2
 
     
     def get_sam_gradient(self, grads, x, y):
@@ -42,6 +52,7 @@ class With_SAM_Model(tf.keras.Model):
         with tf.GradientTape() as noised_tape:
             noised_y_pred = self(x)  # Forward pass
             noised_loss = self.compiled_loss(y, noised_y_pred)
+            noised_loss +=  self.l2_reg * 0.5 * self.weights_decay(self.trainable_variables)
         
         noised_vars = self.trainable_variables
         noised_grads = noised_tape.gradient(noised_loss, noised_vars)
@@ -67,6 +78,7 @@ class With_SAM_Model(tf.keras.Model):
             # Compute the loss valuese
             # (the loss function is configured in `compile()`)
             loss = self.compiled_loss(y, y_pred)
+            loss += self.l2_reg * 0.5 * self.weights_decay(self.trainable_variables)
 
         # Compute gradients
         trainable_vars = self.trainable_variables
@@ -163,7 +175,10 @@ if __name__ == "__main__":
 
     # model = tf.keras.Model(inputs = [model_input],outputs = [logit], name = "ViT_model")
 
-    sam_model = With_SAM_Model(inputs = [model_input],outputs = [prob], dual_vector = dual_vector, rho = 0.1, gradient_clipping = 1.0)
+    sam_model_config = model_config.get_sam_config()
+
+    sam_model = With_SAM_Model(inputs = [model_input],outputs = [prob], dual_vector = dual_vector, rho = sam_model_config.rho,\
+        gradient_clipping = sam_model_config.gradient_clipping, l2_reg = sam_model_config.weight_decay)
 
     model = sam_model
 
@@ -176,13 +191,15 @@ if __name__ == "__main__":
     # my training config:
     steps_per_epoch = ds_train_num_examples//config.batch
     validation_steps = 3
-    log_dir="./tf_log/"
+    # log_dir="./tf_log/"
+    log_dir="./tf_log/sam_vit/"
+    # log_dir="./tf_log/origin_vit/"
     total_steps = 100
     warmup_steps = 5
     base_lr = 1e-3
 
     # define callback 
-    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=10, update_freq= "batch")
+    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=10, update_freq= 10)
     save_model_callback = tf.keras.callbacks.ModelCheckpoint(
         filepath='./model/ViT.ckpt',
         save_weights_only= True,
