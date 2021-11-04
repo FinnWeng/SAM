@@ -231,7 +231,7 @@ if __name__ == "__main__":
     # log_dir="./tf_log/origin_vit/"
     total_steps = 100
     warmup_steps = 1000
-    base_lr = 3e-3
+    base_lr = 1e-3
     epochs = 100
 
     # define callback 
