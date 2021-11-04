@@ -333,6 +333,12 @@ class ViT(tf.keras.Model):
                 self.representation_size,kernel_initializer=tf.keras.initializers.LecunNormal(),
                 )(x)
             x = tf.keras.activations.gelu(x,approximate = True)
+            x = self.get("pre_logits2",tf.keras.layers.Dense, 
+                self.representation_size,kernel_initializer=tf.keras.initializers.LecunNormal(),
+                )(x)
+            x = self.get("pre_logits3",tf.keras.layers.Dense, 
+                self.representation_size,kernel_initializer=tf.keras.initializers.LecunNormal(),
+                )(x)
         # else:
         #     x = IdentityLayer(name='pre_logits')(x)
 
