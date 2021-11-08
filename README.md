@@ -1,4 +1,4 @@
-# Vision Transformer with SAM
+# ViT with SAM(Sharpness-Aware Minimization)
 
 This repo is basically trying to reproduce result of "WHEN VISION TRANSFORMERS OUTPERFORM RESNETS WITHOUT PRE-TRAINING OR STRONG DATA AUGMENTATIONS".
 
